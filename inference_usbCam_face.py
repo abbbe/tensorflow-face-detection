@@ -71,11 +71,12 @@ class TensoflowFaceDector(object):
         (boxes, scores, classes, num_detections) = self.sess.run(
             [boxes, scores, classes, num_detections],
             feed_dict={image_tensor: image_np_expanded})
-        elapsed_time = time.time() - start_time
-        print('inference time cost: {}'.format(elapsed_time))
+        #print('inference time cost: {}'.format(elapsed_time))
 
         return (boxes, scores, classes, num_detections)
 
+import profiler
+profiler = profiler.Profiler()
 
 if __name__ == "__main__":
     import sys
@@ -94,42 +95,52 @@ if __name__ == "__main__":
     planb.connect_upstream()
 
     cap = cv2.VideoCapture(camID)
+    #cap.set(cv2.CAP_PROP_AUTOFOCUS, 0) # turn the autofocus off
+    
     windowNotSet = True
+    t = [0, 0, 0, 0, 0, 0]
     while True:
+        t[0] = time.time()
         ret, image = cap.read()
         if ret == 0:
             break
+        t[1] = time.time()
 
         [h, w] = image.shape[:2]
-        print (h, w)
 
         meta = {}
-        if not planb.process_image(image, meta):
-            # skip bounding box detection
-            continue
 
-        image = cv2.flip(image, 1)
+        res = planb.process_image(image, meta)
+        t[2] = time.time()
 
-        (boxes, scores, classes, num_detections) = tDetector.run(image)
+        if res:
+            image = cv2.flip(image, 1)
 
-        planb.process_boxes(image, meta, boxes[0], scores[0])
+            (boxes, scores, classes, num_detections) = tDetector.run(image)
+            t[3] = time.time()
 
-        vis_util.visualize_boxes_and_labels_on_image_array(
-            image,
-            np.squeeze(boxes),
-            np.squeeze(classes).astype(np.int32),
-            np.squeeze(scores),
-            category_index,
-            use_normalized_coordinates=True,
-            line_thickness=4)
+            planb.process_boxes(image, meta, boxes[0], scores[0])
+            t[4] = time.time()
 
-        if windowNotSet is True:
-            cv2.namedWindow("tensorflow based (%d, %d)" % (w, h), cv2.WINDOW_NORMAL)
-            windowNotSet = False
+            vis_util.visualize_boxes_and_labels_on_image_array(
+                image,
+                np.squeeze(boxes),
+                np.squeeze(classes).astype(np.int32),
+                np.squeeze(scores),
+                category_index,
+                use_normalized_coordinates=True,
+                line_thickness=4)
 
-        cv2.imshow("tensorflow based (%d, %d)" % (w, h), image)
-        k = cv2.waitKey(1) & 0xff
-        if k == ord('q') or k == 27:
-            break
+            if windowNotSet is True:
+                cv2.namedWindow("tensorflow based (%d, %d)" % (w, h), cv2.WINDOW_NORMAL)
+                windowNotSet = False
+
+            cv2.imshow("tensorflow based (%d, %d)" % (w, h), image)
+            k = cv2.waitKey(1) & 0xff
+            if k == ord('q') or k == 27:
+                break
+                
+        t[5] = time.time()
+        profiler.report(t)
 
     cap.release()
