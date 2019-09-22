@@ -171,7 +171,7 @@ def send_event(image, meta, event):
 
     if clientsocket is not None or fileh is not None:
         # add frame to the event structure
-        image = cv2.resize(image, (64, 48)) # FIXME
+        image = cv2.resize(image, (640, 480)) # FIXME
         _, imdata = cv2.imencode('.jpg', image)
         encoded_imdata = base64.b64encode(imdata).decode('ascii')
         event['frame'] = encoded_imdata 
