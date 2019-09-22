@@ -3,7 +3,7 @@ import math
 
 import logging
 logger = logging.getLogger('planb')
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.ERROR)
 
 target = None
 box_score_threshold = 0.8
