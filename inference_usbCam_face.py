@@ -84,17 +84,25 @@ if __name__ == "__main__":
     try:
         assert(len(sys.argv) == 3)
         camID = int(sys.argv[1])
-        port = int(sys.argv[2])
+
+        try:
+            upstreamPort = int(sys.argv[2])
+            upstreamFile = None
+        except:
+            upstreamPort = -1
+            upstreamFile = sys.argv[2]
+
     except:
         print("")
-        print("Usage: %s cameraID upstream-port")
-        print("Example: %s 0 8089" % (sys.argv[0]))
-        print("Use port -1 to suppress upstream connection")
+        print("Usage: %s cameraID (upstream-port|upstream-file)")
+        print("    %s 0 -1" % (sys.argv[0]))
+        print("    %s 0 8089" % (sys.argv[0]))
+        print("    %s 0 upstream.json" % (sys.argv[0]))
         exit(1)
 
     tDetector = TensoflowFaceDector(PATH_TO_CKPT)
 
-    planb.connect_upstream(port)
+    planb.connect_upstream(port=upstreamPort, file=upstreamFile)
 
     cap = cv2.VideoCapture(camID)
     cap.set(cv2.CAP_PROP_AUTOFOCUS, 0) # turn the autofocus off
@@ -146,4 +154,9 @@ if __name__ == "__main__":
         t[5] = time.time()
         profiler.report(t)
 
+        if cv2.waitKey(1) == 'q': # FIXME
+            break
+
+    profiler.close()
+    planb.deinit()
     cap.release()

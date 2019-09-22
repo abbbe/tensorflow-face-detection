@@ -135,13 +135,16 @@ import json
 import base64
 
 clientsocket = None
+fileh = None
 
-def connect_upstream(port):
-    global clientsocket
+def connect_upstream(port, file):
+    global clientsocket, fileh
     if port >= 0:
         clientsocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         clientsocket.connect(('localhost', port))
         logger.info('Connected upstream')
+    if file is not None:
+        fileh = open(file, 'wb')
 
 def send_event_camera_moving(image, meta):
     # 3
@@ -166,13 +169,24 @@ def send_event_target_lost(image, meta):
 def send_event(image, meta, event):
     logger.info('send_event(%s)' % event)
 
-    if clientsocket is not None:
-        # prepare image for upstream
+    if clientsocket is not None or fileh is not None:
+        # add frame to the event structure
         image = cv2.resize(image, (64, 48)) # FIXME
-
         _, imdata = cv2.imencode('.jpg', image)
         encoded_imdata = base64.b64encode(imdata).decode('ascii')
         event['frame'] = encoded_imdata 
 
-        msg = json.dumps(event) + '\r\n'
-        clientsocket.sendall(msg.encode('ascii'))
+        msg = (json.dumps(event) + '\r\n').encode('ascii')
+
+        if clientsocket is not None:
+            clientsocket.sendall(msg)
+        if fileh is not None:
+            fileh.write(msg)
+
+def deinit():
+    if clientsocket is not None:
+        clientsocket.close()
+        clientsocket = None
+    if fileh is not None:
+        fileh.close()
+        fileh = None
