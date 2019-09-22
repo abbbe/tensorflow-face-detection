@@ -80,19 +80,21 @@ profiler = profiler.Profiler()
 
 if __name__ == "__main__":
     import sys
-    if len(sys.argv) != 2:
-        print ("usage:%s (cameraID | filename) Detect faces\
- in the video example:%s 0"%(sys.argv[0], sys.argv[0]))
-        exit(1)
 
     try:
-    	camID = int(sys.argv[1])
+        assert(len(sys.argv) == 3)
+        camID = int(sys.argv[1])
+        port = int(sys.argv[2])
     except:
-    	camID = sys.argv[1]
-    
+        print("")
+        print("Usage: %s cameraID upstream-port")
+        print("Example: %s 0 8089" % (sys.argv[0]))
+        print("Use port -1 to suppress upstream connection")
+        exit(1)
+
     tDetector = TensoflowFaceDector(PATH_TO_CKPT)
 
-    planb.connect_upstream()
+    planb.connect_upstream(port)
 
     cap = cv2.VideoCapture(camID)
     cap.set(cv2.CAP_PROP_AUTOFOCUS, 0) # turn the autofocus off

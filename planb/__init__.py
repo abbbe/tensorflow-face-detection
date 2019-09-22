@@ -133,15 +133,13 @@ import socket
 import struct
 import pickle
 
-HOST = ''
-PORT = 8089 # or None to disable upstream connection
 clientsocket = None
 
-def connect_upstream():
+def connect_upstream(port):
     global clientsocket
-    if PORT is not None:
+    if port >= 0:
         clientsocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        clientsocket.connect(('localhost', 8089))
+        clientsocket.connect(('localhost', port))
         logger.info('Connected upstream')
 
 def send_event_camera_moving(image, meta):
