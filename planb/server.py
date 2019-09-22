@@ -1,6 +1,7 @@
 import pickle
 import socket
-import struct
+import json
+import base64
 
 import cv2
 import numpy as np
@@ -18,37 +19,16 @@ print('Socket now listening')
 
 conn, addr = s.accept()
 print('Connection accepted')
-
-data = b'' ### CHANGED
-payload_size = struct.calcsize("L") ### CHANGED
+connf = conn.makefile('rb')
 
 kernel = np.ones((10,10),np.float32)/100
 
 while True:
+    data = connf.readline()
+    event = json.loads(data)
+    imdata = base64.b64decode(event['frame'])
+    frame = cv2.imdecode(np.frombuffer(imdata, np.uint8), -1)
 
-    # Retrieve message size
-    while len(data) < payload_size:
-        chunk = conn.recv(4096)
-        if chunk == b'':
-            raise RuntimeError("socket connection broken")
-        data += chunk
-
-    packed_msg_size = data[:payload_size]
-    data = data[payload_size:]
-    msg_size = struct.unpack("L", packed_msg_size)[0] ### CHANGED
-
-    # Retrieve all data based on message size
-    while len(data) < msg_size:
-        chunk = conn.recv(4096)
-        if chunk == b'':
-            raise RuntimeError("socket connection broken")
-        data += chunk
-
-    frame_data = data[:msg_size]
-    data = data[msg_size:]
-
-    # Extract the message
-    [meta, event, frame] = pickle.loads(frame_data)
     #event['camera_moves']
     if event['target_locked']:
         if 'target_box' in event:

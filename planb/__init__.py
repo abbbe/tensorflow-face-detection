@@ -131,7 +131,8 @@ def update_target(image, meta, box):
 
 import socket
 import struct
-import pickle
+import json
+import base64
 
 clientsocket = None
 
@@ -154,7 +155,7 @@ def send_event_no_target_lock(image, meta):
 
 def send_event_target_locked(image, meta, box):
     # 10
-    send_event(image, meta, { 'camera_moves': False, 'target_locked': True, 'target_box': box })
+    send_event(image, meta, { 'camera_moves': False, 'target_locked': True, 'target_box': box.tolist() })
     return
 
 def send_event_target_lost(image, meta):
@@ -166,11 +167,12 @@ def send_event(image, meta, event):
     logger.info('send_event(%s)' % event)
 
     if clientsocket is not None:
-        # convert back to BGR and resize
-        #image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
-        #image = cv2.resize(image, (640, 480))  # resize the frame        
+        # prepare image for upstream
+        image = cv2.resize(image, (64, 48)) # FIXME
 
-        # serialize metadata, event, and image and send upstream
-        data = pickle.dumps([meta, event, image])
-        message_size = struct.pack("L", len(data)) ### CHANGED
-        clientsocket.sendall(message_size + data)
+        _, imdata = cv2.imencode('.jpg', image)
+        encoded_imdata = base64.b64encode(imdata).decode('ascii')
+        event['frame'] = encoded_imdata 
+
+        msg = json.dumps(event) + '\r\n'
+        clientsocket.sendall(msg.encode('ascii'))
