@@ -103,3 +103,5 @@ ENV/
 *.mp4
 *.avi
 *.pb
+.*.m.swp
+profiler.csv
