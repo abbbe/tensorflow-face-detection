@@ -6,9 +6,10 @@ nSeek = 2;
 pkg load outliers;
 
 tCapture = X(nSeek:nRows, 1);
-tProc = X(nSeek:nRows, 2);
-tVis = X(nSeek:nRows, 3);
-tTotal = X(nSeek:nRows, 4);
+tFaceDet = X(nSeek:nRows, 2);
+tFaceProc = X(nSeek:nRows, 3);
+tVis = X(nSeek:nRows, 4);
+tTotal = X(nSeek:nRows, 5);
 
 close all;
 hold on;
@@ -26,7 +27,8 @@ function showData(rows, pos, data, name)
   legend(mText);
 endfunction
 
-showData(4, 1, tCapture, 'tCapture');
-showData(4, 2, tProc, 'tProc');
-showData(4, 3, tVis, 'tVis');
-showData(4, 4, tTotal, 'tTotal');
+showData(5, 1, tCapture, 'tCapture');
+showData(5, 2, tFaceDet, 'tFaceDet');
+showData(5, 3, tFaceProc, 'tFaceProc');
+showData(5, 4, tVis, 'tVis');
+showData(5, 5, tTotal, 'tTotal');

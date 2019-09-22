@@ -95,12 +95,13 @@ if __name__ == "__main__":
     planb.connect_upstream()
 
     cap = cv2.VideoCapture(camID)
-    #cap.set(cv2.CAP_PROP_AUTOFOCUS, 0) # turn the autofocus off
+    cap.set(cv2.CAP_PROP_AUTOFOCUS, 0) # turn the autofocus off
+    cap.set(cv2.CAP_PROP_FPS, 30)
     
     windowNotSet = True
-    t = [0, 0, 0, 0, 0, 0]
     while True:
-        t[0] = time.time()
+        t = [time.time(), 0, 0, 0, 0, 0]
+
         ret, image = cap.read()
         if ret == 0:
             break
