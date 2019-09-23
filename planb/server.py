@@ -10,9 +10,10 @@ import numpy as np
 kernel = np.ones((10,10),np.float32)/100
 
 def augment_frame(event, frame):
-    # FIXME - handle event['camera_moves']
-    
-    if event['target_locked']:
+    if event['camera_moves']:
+        ## move - show everything in weird colors
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    elif event['target_locked']:
         if 'target_box' in event:
             ## show frame, smoothing everything except target box
             # convert coordinates of the bounding box to pixels
@@ -30,7 +31,7 @@ def augment_frame(event, frame):
 
             cv2.rectangle(frame, (x1, y1), (x2, y2), (255,0,0), 1)
         else:
-            ## no target - show frame, smoothing everything except target box
+            ## target box lost - show frame, smoothing everything except
             frame = cv2.filter2D(frame, -1, kernel)        
     else:
         ## no lock - show frame in greyscale

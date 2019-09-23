@@ -67,7 +67,7 @@ class TensoflowFaceDector(object):
         classes = self.detection_graph.get_tensor_by_name('detection_classes:0')
         num_detections = self.detection_graph.get_tensor_by_name('num_detections:0')
         # Actual detection.
-        start_time = time.time()
+        #start_time = time.time()
         (boxes, scores, classes, num_detections) = self.sess.run(
             [boxes, scores, classes, num_detections],
             feed_dict={image_tensor: image_np_expanded})
@@ -75,40 +75,49 @@ class TensoflowFaceDector(object):
 
         return (boxes, scores, classes, num_detections)
 
+def usage():
+    print("")
+    print("Usage: %s cameraID (upstream-port|upstream-file)")
+    print("    %s 0 0" % (sys.argv[0]))
+    print("    %s 0 8089" % (sys.argv[0]))
+    print("    %s 0 upstream.json" % (sys.argv[0]))
+    exit(1)
+
 import profiler
 profiler = profiler.Profiler()
+
+pb = planb.PlanB()
 
 if __name__ == "__main__":
     import sys
 
-    try:
-        assert(len(sys.argv) == 3)
-        camID = int(sys.argv[1])
 
-        try:
-            upstreamPort = int(sys.argv[2])
-            upstreamFile = None
-        except:
-            upstreamPort = -1
-            upstreamFile = sys.argv[2]
+    if len(sys.argv) != 3:
+        usage()
 
-    except:
-        print("")
-        print("Usage: %s cameraID (upstream-port|upstream-file)")
-        print("    %s 0 -1" % (sys.argv[0]))
-        print("    %s 0 8089" % (sys.argv[0]))
-        print("    %s 0 upstream.json" % (sys.argv[0]))
-        exit(1)
+    if not sys.argv[1].isdigit():
+        usage()
+    camID = int(sys.argv[1])
+
+    if sys.argv[2].isdigit():
+        port = int(sys.argv[2])
+        if port > 0:
+            pb.upstream.connect_socket('localhost', port)
+        # else port == 0: do nothing
+    else:
+        pb.upstream.open_file(sys.argv[2])
 
     tDetector = TensoflowFaceDector(PATH_TO_CKPT)
-
-    planb.connect_upstream(port=upstreamPort, file=upstreamFile)
 
     cap = cv2.VideoCapture(camID)
     cap.set(cv2.CAP_PROP_AUTOFOCUS, 0) # turn the autofocus off
     cap.set(cv2.CAP_PROP_FPS, 30)
     
-    windowNotSet = True
+    windowName = None
+    visualize = True
+
+    print("Visualize = %s" % visualize)
+
     while True:
         t = [time.time(), 0, 0, 0, 0, 0]
 
@@ -117,46 +126,54 @@ if __name__ == "__main__":
             break
         t[1] = time.time()
 
-        [h, w] = image.shape[:2]
-
         meta = {}
 
-        res = planb.process_image(image, meta)
+        #res = pb.process_image(image, meta)
+        image = cv2.flip(image, 1)
+
         t[2] = time.time()
 
-        if res:
-            image = cv2.flip(image, 1)
-
+        if pb.is_camera_moving():
+            pb.upstream.send_event_camera_moving(image, meta)
+            pb.release_target()
+        else:
             (boxes, scores, classes, num_detections) = tDetector.run(image)
             t[3] = time.time()
 
-            planb.process_boxes(image, meta, boxes[0], scores[0])
+            pb.process_boxes(image, meta, boxes[0], scores[0])
             t[4] = time.time()
 
-            vis_util.visualize_boxes_and_labels_on_image_array(
-                image,
-                np.squeeze(boxes),
-                np.squeeze(classes).astype(np.int32),
-                np.squeeze(scores),
-                category_index,
-                use_normalized_coordinates=True,
-                line_thickness=4)
+            if visualize:
+                vis_util.visualize_boxes_and_labels_on_image_array(
+                    image,
+                    np.squeeze(boxes),
+                    np.squeeze(classes).astype(np.int32),
+                    np.squeeze(scores),
+                    category_index,
+                    use_normalized_coordinates=True,
+                    line_thickness=4)
 
-            if windowNotSet is True:
-                cv2.namedWindow("tensorflow based (%d, %d)" % (w, h), cv2.WINDOW_NORMAL)
-                windowNotSet = False
+        if visualize:
+            if windowName is None:
+                [h, w] = image.shape[:2]
+                windowName = "tensorflow based (%d, %d)" % (w, h)
+                cv2.namedWindow(windowName, cv2.WINDOW_NORMAL)
+            cv2.imshow(windowName, image)
 
-            cv2.imshow("tensorflow based (%d, %d)" % (w, h), image)
-            k = cv2.waitKey(1) & 0xff
-            if k == ord('q') or k == 27:
-                break
-                
+        k = cv2.waitKey(1) & 0xff
+        if k == ord('q') or k == 27:
+            print("Exiting...")
+            break
+        elif k == ord('r'):
+            print("Resetting move timing (%d/%d)" % (pb.move_duration, pb.move_period))
+            pb.reset_move()
+        elif k == ord('v'):
+            visualize = not visualize
+            print("Visualize = %s" % visualize)
+
         t[5] = time.time()
         profiler.report(t)
 
-        if cv2.waitKey(1) == 'q': # FIXME
-            break
-
     profiler.close()
-    planb.deinit()
+    pb.upstream.close()
     cap.release()
