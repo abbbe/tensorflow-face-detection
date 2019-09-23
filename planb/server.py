@@ -10,10 +10,7 @@ import numpy as np
 kernel = np.ones((10,10),np.float32)/100
 
 def augment_frame(event, frame):
-    if event['camera_moves']:
-        ## move - show everything in weird colors
-        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    elif event['target_locked']:
+    if 'target_locked' in event and event['target_locked']:
         if 'target_box' in event:
             ## show frame, smoothing everything except target box
             # convert coordinates of the bounding box to pixels
@@ -29,13 +26,11 @@ def augment_frame(event, frame):
             frame = cv2.filter2D(frame, -1, kernel)        
             frame[y1:y2, x1:x2] = face
 
+            # draw blue rectangle
             cv2.rectangle(frame, (x1, y1), (x2, y2), (255,0,0), 1)
         else:
-            ## target box lost - show frame, smoothing everything except
+            ## target box lost - show frame, smoothing everything
             frame = cv2.filter2D(frame, -1, kernel)        
-    else:
-        ## no lock - show frame in greyscale
-        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     return frame
     
 def run(fileh, delay):
@@ -49,6 +44,17 @@ def run(fileh, delay):
         frame = cv2.imdecode(np.frombuffer(imdata, np.uint8), -1)
 
         frame = augment_frame(event, frame)
+
+        # Put event attributes on the image
+        def putText(row, text):
+            scale = 0.5
+            cv2.putText(frame, text, (0, int(25*row*scale)), cv2.FONT_HERSHEY_SIMPLEX, scale, 255)
+        putText(1, 'camera_moves=%s' % event['camera_moves'])
+        if 'target_locked' in event:
+            putText(2, 'target_locked=%s' % event['target_locked'])
+        if 'target_box' in event:
+            tb = list(map(lambda x: ("%.3f" % x), event['target_box']))
+            putText(3, 'target_box=%s' % tb)
 
         # Display
         cv2.imshow('frame', frame)
