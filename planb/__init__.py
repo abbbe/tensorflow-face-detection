@@ -125,3 +125,14 @@ class PlanB:
 
     def release_target(self):
         self.target = None
+
+    # ====================================================================================================
+
+    def show_info(self, frame):
+        # Put status attributes on the image
+        def putText(row, text):
+            scale = 0.5
+            cv2.putText(frame, text, (0, int(25*row*scale)), cv2.FONT_HERSHEY_SIMPLEX, scale, 255)
+        
+        elapsed = (time.time() - self.start_time) % self.move_period
+        putText(1, 'elapsed=%.2f' % elapsed)

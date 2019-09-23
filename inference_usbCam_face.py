@@ -158,6 +158,7 @@ if __name__ == "__main__":
                 [h, w] = image.shape[:2]
                 windowName = "tensorflow based (%d, %d)" % (w, h)
                 cv2.namedWindow(windowName, cv2.WINDOW_NORMAL)
+            pb.show_info(image)
             cv2.imshow(windowName, image)
 
         k = cv2.waitKey(1) & 0xff
