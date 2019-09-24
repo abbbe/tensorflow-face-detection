@@ -10,15 +10,18 @@ logger.setLevel(logging.INFO)
 
 class Upstream:
     def __init__(self):
+        self.stream_frames = False
         self.clientsocket = None
         self.fileh = None
 
-    def connect_socket(self, host, port):
+    def connect_socket(self, host, port, stream_frames):
+        self.stream_frames = stream_frames
         self.clientsocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.clientsocket.connect((host, port))
         logger.info('Connected to upstream server %s:%d' % (host, port))
 
-    def open_file(self, file):
+    def open_file(self, file, stream_frames):
+        self.stream_frames = stream_frames
         self.fileh = open(file, 'wb')
         logger.info('Opened upstream file %s' % file)
 
@@ -42,11 +45,15 @@ class Upstream:
         logger.debug('send_event(%s)' % event)
 
         if self.clientsocket is not None or self.fileh is not None:
-            # add encoded frame to the event structure
-            image = cv2.resize(image, (640, 480)) # FIXME
-            _, imdata = cv2.imencode('.jpg', image)
-            encoded_imdata = base64.b64encode(imdata).decode('ascii')
-            event['frame'] = encoded_imdata 
+            if self.stream_frames:
+                # add encoded frame to the event structure
+                image = cv2.resize(image, (640, 480)) # FIXME
+                _, imdata = cv2.imencode('.jpg', image)
+                encoded_imdata = base64.b64encode(imdata).decode('ascii')
+                event['frame'] = encoded_imdata
+
+            # if self.stream_timestamps:
+            #   events['t'] = ...
 
             msg = (json.dumps(event) + '\r\n').encode('ascii')
 

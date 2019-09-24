@@ -91,9 +91,9 @@ pb = planb.PlanB()
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument("-f", "--stream_frames", help="do send encoded frames upstream")
-    parser.add_argument("camera", help="do not send frames upstream")
-    parser.add_argument("upstream", help="do not send frames upstream")
+    parser.add_argument("-f", "--stream_frames", action='store_true', help="send encoded frames upstream")
+    parser.add_argument("camera", help="camera | file")
+    parser.add_argument("upstream", help="port number | file")
     args = parser.parse_args()
 
     if not args.camera.isdigit():
@@ -103,14 +103,11 @@ if __name__ == "__main__":
     if args.upstream.isdigit():
         port = int(args.upstream)
         if port > 0:
-            pb.upstream.connect_socket('localhost', port)
+            pb.upstream.connect_socket('localhost', port, stream_frames=args.stream_frames)
         # else port == 0: do nothing
     else:
-        pb.upstream.open_file(args.upstream)
+        pb.upstream.open_file(args.upstream, stream_frames=args.stream_frames)
     
-    if args.stream_frames:
-        pb.upstream.stream_frames(args.stream_frames)
-
     tDetector = TensoflowFaceDector(PATH_TO_CKPT)
 
     cap = cv2.VideoCapture(camID)
