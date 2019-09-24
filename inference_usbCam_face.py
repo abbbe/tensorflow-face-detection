@@ -89,23 +89,27 @@ profiler = profiler.Profiler()
 pb = planb.PlanB()
 
 if __name__ == "__main__":
-    import sys
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-f", "--stream_frames", help="do send encoded frames upstream")
+    parser.add_argument("camera", help="do not send frames upstream")
+    parser.add_argument("upstream", help="do not send frames upstream")
+    args = parser.parse_args()
 
-
-    if len(sys.argv) != 3:
+    if not args.camera.isdigit():
         usage()
+    camID = int(args.camera)
 
-    if not sys.argv[1].isdigit():
-        usage()
-    camID = int(sys.argv[1])
-
-    if sys.argv[2].isdigit():
-        port = int(sys.argv[2])
+    if args.upstream.isdigit():
+        port = int(args.upstream)
         if port > 0:
             pb.upstream.connect_socket('localhost', port)
         # else port == 0: do nothing
     else:
-        pb.upstream.open_file(sys.argv[2])
+        pb.upstream.open_file(args.upstream)
+    
+    if args.stream_frames:
+        pb.upstream.stream_frames(args.stream_frames)
 
     tDetector = TensoflowFaceDector(PATH_TO_CKPT)
 
