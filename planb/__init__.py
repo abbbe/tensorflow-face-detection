@@ -77,8 +77,8 @@ class PlanB:
         else:
             box = boxes[i]
             logger.info('process_boxes_for_locked_target(): best box=%s, score=%s, dist=%f' % (box, scores[i], dist))
-            self.update_target(image, meta, box)
-            self.upstream.send_event_target_locked(image, meta, box)
+            smoothed_box = self.update_target(image, meta, box)
+            self.upstream.send_event_target_locked(image, meta, smoothed_box)
 
     # ----------------------------------------------------------------------------
 
@@ -117,13 +117,16 @@ class PlanB:
         return [closest_box_i, closest_box_distance]
 
     def acquire_target(self, image, meta, box):
-        # 9
+        # 9 - called once after target is selected
         self.target = { 'box': box }
 
     def update_target(self, image, meta, box):
-        self.acquire_target(image, meta, box) # actually ti is the same as acquire
+        # 14 - called continuously after target is
+        self.target = { 'box': box }
+        return box
 
     def release_target(self):
+        # invoked when camera starts moving
         self.target = None
 
     # ====================================================================================================
