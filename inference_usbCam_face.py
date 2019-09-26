@@ -111,8 +111,8 @@ if __name__ == "__main__":
     tDetector = TensoflowFaceDector(PATH_TO_CKPT)
 
     cap = cv2.VideoCapture(camID)
-    cap.set(cv2.CAP_PROP_AUTOFOCUS, 0) # turn the autofocus off
-    cap.set(cv2.CAP_PROP_FPS, 30)
+    #cap.set(cv2.CAP_PROP_AUTOFOCUS, 0) # turn the autofocus off
+    #cap.set(cv2.CAP_PROP_FPS, 30)
     
     windowName = None
     visualize = True
