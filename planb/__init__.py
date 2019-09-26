@@ -61,24 +61,22 @@ class PlanB:
         [i, sq] = self.find_best_target(image, meta, boxes, scores)
         if i is None:
             logger.info('process_boxes_for_new_target(): face not found')
-            self.upstream.send_event_no_target_lock(image, meta)    
+            self.upstream.send_idle(image, meta)    
         else:
             box = boxes[i]
             logger.info('process_boxes_for_new_target(): best box=%s, score=%s, sq=%f' % (box, scores[i], sq))
-            self.acquire_target(image, meta, box)
-            self.upstream.send_event_target_locked(image, meta, box)
+            self.upstream.send_effect_start(image, meta, box)
 
     def process_boxes_for_locked_target(self, image, meta, boxes, scores):
         # 11
         [i, dist] = self.find_locked_target(image, meta, boxes, scores)
         if i is None:
-            logger.info('process_boxes_for_locked_target(): face not found')
-            self.upstream.send_event_target_lost(image, meta)    
+            logger.info('process_boxes_for_locked_target(): face lost, aborting')
+            self.upstream.send_effect_abort(image, meta)    
         else:
             box = boxes[i]
             logger.info('process_boxes_for_locked_target(): best box=%s, score=%s, dist=%f' % (box, scores[i], dist))
-            smoothed_box = self.update_target(image, meta, box)
-            self.upstream.send_event_target_locked(image, meta, smoothed_box)
+            self.upstream.send_effect_run(image, meta, box)
 
     # ----------------------------------------------------------------------------
 
@@ -97,6 +95,10 @@ class PlanB:
             if sq > best_box_sq:
                 best_box_i = i
                 best_box_sq = sq
+
+        if best_box_i is not None:
+            self.target = { 'box': boxes[best_box_i] }
+
         return [best_box_i, best_box_sq]
 
     def find_locked_target(self, image, meta, boxes, scores):
@@ -114,20 +116,11 @@ class PlanB:
             if distance < closest_box_distance:
                 closest_box_i = i
                 closest_box_distance = distance
+
+        if closest_box_i is not None:
+            self.target = { 'box': boxes[closest_box_i] }
+
         return [closest_box_i, closest_box_distance]
-
-    def acquire_target(self, image, meta, box):
-        # 9 - called once after target is selected
-        self.target = { 'box': box }
-
-    def update_target(self, image, meta, box):
-        # 14 - called continuously after target is
-        self.target = { 'box': box }
-        return box
-
-    def release_target(self):
-        # invoked when camera starts moving
-        self.target = None
 
     # ====================================================================================================
 

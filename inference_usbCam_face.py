@@ -134,10 +134,7 @@ if __name__ == "__main__":
 
         t[2] = time.time()
 
-        if pb.is_camera_moving():
-            pb.upstream.send_event_camera_moving(image, meta)
-            pb.release_target()
-        else:
+        if not pb.is_camera_moving():
             (boxes, scores, classes, num_detections) = tDetector.run(image)
             t[3] = time.time()
 

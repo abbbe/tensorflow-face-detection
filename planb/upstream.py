@@ -9,6 +9,10 @@ logger = logging.getLogger('upstream')
 logger.setLevel(logging.INFO)
 
 class Upstream:
+    T1 = 3
+    T2 = 10
+    T3 = 3
+
     def __init__(self):
         self.stream_frames = False
         self.clientsocket = None
@@ -25,21 +29,17 @@ class Upstream:
         self.fileh = open(file, 'wb')
         logger.info('Opened upstream file %s' % file)
 
-    def send_event_camera_moving(self, image, meta):
-        # 3
-        self.send_event(image, meta, { 'camera_moves': True })
+    def send_idle(self, image, meta):
+        self.send_event(image, meta, { 'mode': 'idle' })
 
-    def send_event_no_target_lock(self, image, meta):
-        # 8
-        self.send_event(image, meta, { 'camera_moves': False, 'target_locked': False })
+    def send_effect_start(self, image, meta, box):
+        self.send_event(image, meta, { 'mode': 'effect_start', 'box': box.tolist(), 'time': [self.T1, self.T2, self.T3] })
 
-    def send_event_target_locked(self, image, meta, box):
-        # 10
-        self.send_event(image, meta, { 'camera_moves': False, 'target_locked': True, 'target_box': box.tolist() })
+    def send_effect_run(self, image, meta, box):
+        self.send_event(image, meta, { 'mode': 'effect_run', 'box': box.tolist() })
 
-    def send_event_target_lost(self, image, meta):
-        # 15
-        self.send_event(image, meta, { 'camera_moves': False, 'target_locked': True })
+    def send_effect_abort(self, image, meta):
+        self.send_event(image, meta, { 'mode': 'effect_abort', 'time': [self.T3] })
 
     def send_event(self, image, meta, event):
         logger.debug('send_event(%s)' % event)
@@ -62,6 +62,7 @@ class Upstream:
                 self.clientsocket.sendall(msg)
             if self.fileh is not None:
                 self.fileh.write(msg)
+                self.fileh.flush()
 
     def close(self):
         if self.clientsocket is not None:
