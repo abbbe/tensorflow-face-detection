@@ -25,23 +25,28 @@ def _get_box_sq(box):
 
 # ========================================================================================================
 
+from enum import Enum
+class Mode(Enum):
+    MOVING = 1
+    IDLE = 2
+    EFFECT_START = 3
+    EFFECT_RUN = 4
+    EFFECT_ABORT = 5
+
 class PlanB:
+    mode = Mode(Mode.IDLE)
     box_score_threshold = 0.8
     move_period = 10
     move_duration = 3
+
+    T1 = 3
+    T2 = 10
+    T3 = 3
 
     def __init__(self):
         self.upstream = Upstream()
         self.target = None
         self.start_time = time.time()
-
-    def process_boxes(self, image, meta, boxes, scores):
-        # called after boxes are detected
-        logger.debug('process_boxes(): boxes=%d, target locked=%s' % (len(boxes), (self.target is not None)))
-        if self.target is None:
-            self.process_boxes_for_new_target(image, meta, boxes, scores)
-        else:
-            self.process_boxes_for_locked_target(image, meta, boxes, scores)
 
     # ============================================================================
 
@@ -50,35 +55,74 @@ class PlanB:
     def reset_move(self):
         self.start_time = time.time()
 
-    def is_camera_moving(self):
+    def run(self, image, meta, boxes, scores):
+        # how many seconds passed since the start of the cycle
         elapsed = (time.time() - self.start_time) % self.move_period
-        return (elapsed < self.move_duration)
+        moving = (elapsed < self.move_duration)
+
+        # process single frame
+        # send messages upstream
+
+        if self.mode == Mode.MOVING:
+            if moving:
+                # still moving
+                return # end of processing
+            else:
+                self.mode = Mode.IDLE
+                # fall through
+
+        if self.mode == Mode.IDLE:
+            if moving:
+                # started to move
+                self.mode = Mode.MOVING
+                return # end of processing
+
+            [i, _] = self.find_best_target(image, meta, boxes, scores)
+            if i is None:
+                return # end of processing
+            
+            # new face found
+            self.mode = Mode.EFFECT_START
+            self.mode_endtime = time.time() + self.T1
+            self.upstream.send_effect_start(image, meta, boxes[i], [self.T1, self.T2, self.T3])
+            return # end of processing
+
+        if self.mode == Mode.EFFECT_START:
+            if time.time() < self.mode_endtime:
+                [i, _] = self.find_locked_target(image, meta, boxes, scores)
+                if i is None:
+                    self.mode = Mode.EFFECT_ABORT
+                    self.mode_endtime = time.time() + self.T3
+                    self.upstream.send_effect_abort(image, meta, [self.T3]) 
+                    return # end of processing
+
+                box = boxes[i]
+                self.upstream.send_effect_run(image, meta, box)
+                return # end of processing
+                
+            self.mode = Mode.EFFECT_RUN
+            self.mode_endtime = time.time() + self.T2
+            # fall through
+        
+        if self.mode == Mode.EFFECT_RUN:
+            if time.time() < self.mode_endtime:
+                return # end of processing
+
+            self.mode = Mode.EFFECT_ABORT
+            self.mode_endtime = time.time() + self.T3
+            return # end of processing
+
+        if self.mode == Mode.EFFECT_ABORT:
+            if time.time() < self.mode_endtime:
+                return # end of processing
+
+            if moving:
+                self.mode = Mode.MOVING
+            else:
+                self.mode = Mode.IDLE
+            return # end of processing
 
     # ============================================================================
-
-    def process_boxes_for_new_target(self, image, meta, boxes, scores):
-        # 5
-        [i, sq] = self.find_best_target(image, meta, boxes, scores)
-        if i is None:
-            logger.info('process_boxes_for_new_target(): face not found')
-            self.upstream.send_idle(image, meta)    
-        else:
-            box = boxes[i]
-            logger.info('process_boxes_for_new_target(): best box=%s, score=%s, sq=%f' % (box, scores[i], sq))
-            self.upstream.send_effect_start(image, meta, box)
-
-    def process_boxes_for_locked_target(self, image, meta, boxes, scores):
-        # 11
-        [i, dist] = self.find_locked_target(image, meta, boxes, scores)
-        if i is None:
-            logger.info('process_boxes_for_locked_target(): face lost, aborting')
-            self.upstream.send_effect_abort(image, meta)    
-        else:
-            box = boxes[i]
-            logger.info('process_boxes_for_locked_target(): best box=%s, score=%s, dist=%f' % (box, scores[i], dist))
-            self.upstream.send_effect_run(image, meta, box)
-
-    # ----------------------------------------------------------------------------
 
     def find_best_target(self, image, meta, boxes, scores):
         # FIXME-6: find the biggest face
@@ -128,7 +172,10 @@ class PlanB:
         # Put status attributes on the image
         def putText(row, text):
             scale = 0.5
-            cv2.putText(frame, text, (0, int(25*row*scale)), cv2.FONT_HERSHEY_SIMPLEX, scale, 255)
+            cv2.putText(frame, text, (0, int(25*row*scale)), cv2.FONT_HERSHEY_SIMPLEX, scale, 128)
         
         elapsed = (time.time() - self.start_time) % self.move_period
         putText(1, 'elapsed=%.2f' % elapsed)
+        putText(2, 'mode=%s' % self.mode)
+        if self.mode == Mode.EFFECT_START or self.mode == Mode.EFFECT_RUN or self.mode == Mode.EFFECT_ABORT:
+            putText(3, 'mode_remains=%.2f' % (self.mode_endtime - time.time()))

@@ -134,28 +134,27 @@ if __name__ == "__main__":
 
         t[2] = time.time()
 
-        if not pb.is_camera_moving():
-            (boxes, scores, classes, num_detections) = tDetector.run(image)
-            t[3] = time.time()
+        (boxes, scores, classes, num_detections) = tDetector.run(image)
+        t[3] = time.time()
 
-            pb.process_boxes(image, meta, boxes[0], scores[0])
-            t[4] = time.time()
-
-            if visualize:
-                vis_util.visualize_boxes_and_labels_on_image_array(
-                    image,
-                    np.squeeze(boxes),
-                    np.squeeze(classes).astype(np.int32),
-                    np.squeeze(scores),
-                    category_index,
-                    use_normalized_coordinates=True,
-                    line_thickness=4)
+        pb.run(image, meta, boxes[0], scores[0])
+        t[4] = time.time()
 
         if visualize:
+            vis_util.visualize_boxes_and_labels_on_image_array(
+                image,
+                np.squeeze(boxes),
+                np.squeeze(classes).astype(np.int32),
+                np.squeeze(scores),
+                category_index,
+                use_normalized_coordinates=True,
+                line_thickness=4)
+
             if windowName is None:
                 [h, w] = image.shape[:2]
                 windowName = "tensorflow based (%d, %d)" % (w, h)
                 cv2.namedWindow(windowName, cv2.WINDOW_NORMAL)
+                
             pb.show_info(image)
             cv2.imshow(windowName, image)
 

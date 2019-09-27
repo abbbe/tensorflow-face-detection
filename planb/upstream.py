@@ -9,10 +9,6 @@ logger = logging.getLogger('upstream')
 logger.setLevel(logging.INFO)
 
 class Upstream:
-    T1 = 3
-    T2 = 10
-    T3 = 3
-
     def __init__(self):
         self.stream_frames = False
         self.clientsocket = None
@@ -29,17 +25,14 @@ class Upstream:
         self.fileh = open(file, 'wb')
         logger.info('Opened upstream file %s' % file)
 
-    def send_idle(self, image, meta):
-        self.send_event(image, meta, { 'mode': 'idle' })
-
-    def send_effect_start(self, image, meta, box):
-        self.send_event(image, meta, { 'mode': 'effect_start', 'box': box.tolist(), 'time': [self.T1, self.T2, self.T3] })
+    def send_effect_start(self, image, meta, box, T):
+        self.send_event(image, meta, { 'mode': 'effect_start', 'box': box.tolist(), 'time': T })
 
     def send_effect_run(self, image, meta, box):
         self.send_event(image, meta, { 'mode': 'effect_run', 'box': box.tolist() })
 
-    def send_effect_abort(self, image, meta):
-        self.send_event(image, meta, { 'mode': 'effect_abort', 'time': [self.T3] })
+    def send_effect_abort(self, image, meta, T):
+        self.send_event(image, meta, { 'mode': 'effect_abort', 'time': T })
 
     def send_event(self, image, meta, event):
         logger.debug('send_event(%s)' % event)
