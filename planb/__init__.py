@@ -35,7 +35,9 @@ class Mode(Enum):
 
 class PlanB:
     mode = Mode(Mode.IDLE)
+
     box_score_threshold = 0.8
+
     move_period = 10
     move_duration = 3
 
@@ -43,10 +45,11 @@ class PlanB:
     T2 = 10
     T3 = 3
 
-    def __init__(self):
+    def __init__(self, args):
         self.upstream = Upstream()
         self.target = None
         self.start_time = time.time()
+        self.args = args
 
     # ============================================================================
 
@@ -54,6 +57,10 @@ class PlanB:
 
     def reset_move(self):
         self.start_time = time.time()
+
+    def unrotate(self, box):
+        [x1, y1, x2, y2] = box
+        return [y2, x2, y1, x1]
 
     def run(self, image, meta, boxes, scores):
         # how many seconds passed since the start of the cycle
@@ -80,11 +87,16 @@ class PlanB:
             [i, _] = self.find_best_target(image, meta, boxes, scores)
             if i is None:
                 return # end of processing
-            
+
             # new face found
             self.mode = Mode.EFFECT_START
             self.mode_endtime = time.time() + self.T1
-            self.upstream.send_effect_start(image, meta, boxes[i], [self.T1, self.T2, self.T3])
+
+            if self.args.rotate:
+                box = self.unrotate(boxes[i].tolist())
+            else:
+                box = boxes[i].tolist()
+            self.upstream.send_effect_start(image, meta, box, [self.T1, self.T2, self.T3])
             return # end of processing
 
         if self.mode == Mode.EFFECT_START:
@@ -96,7 +108,10 @@ class PlanB:
                     self.upstream.send_effect_abort(image, meta, [self.T3]) 
                     return # end of processing
 
-                box = boxes[i]
+                if self.args.rotate:
+                    box = self.unrotate(boxes[i].tolist())
+                else:
+                    box = boxes[i].tolist()
                 self.upstream.send_effect_run(image, meta, box)
                 return # end of processing
                 

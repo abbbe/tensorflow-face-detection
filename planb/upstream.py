@@ -26,10 +26,10 @@ class Upstream:
         logger.info('Opened upstream file %s' % file)
 
     def send_effect_start(self, image, meta, box, T):
-        self.send_event(image, meta, { 'mode': 'effect_start', 'box': box.tolist(), 'time': T })
+        self.send_event(image, meta, { 'mode': 'effect_start', 'box': box, 'time': T })
 
     def send_effect_run(self, image, meta, box):
-        self.send_event(image, meta, { 'mode': 'effect_run', 'box': box.tolist() })
+        self.send_event(image, meta, { 'mode': 'effect_run', 'box': box })
 
     def send_effect_abort(self, image, meta, T):
         self.send_event(image, meta, { 'mode': 'effect_abort', 'time': T })

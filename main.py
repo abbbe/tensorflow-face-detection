@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # pylint: disable=C0103
 # pylint: disable=E1101
@@ -86,15 +86,17 @@ def usage():
 import profiler
 profiler = profiler.Profiler()
 
-pb = planb.PlanB()
-
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
+    parser.add_argument("-r", "--rotate", action='store_true', help="rotate clockwise for NN processing")
     parser.add_argument("-f", "--stream_frames", action='store_true', help="send encoded frames upstream")
+    parser.add_argument("-v", "--visualize", action='store_true', help="visualize")
     parser.add_argument("camera", help="camera | file")
     parser.add_argument("upstream", help="port number | file")
     args = parser.parse_args()
+
+    pb = planb.PlanB(args)
 
     if not args.camera.isdigit():
         usage()
@@ -115,9 +117,7 @@ if __name__ == "__main__":
     #cap.set(cv2.CAP_PROP_FPS, 30)
     
     windowName = None
-    visualize = True
-
-    print("Visualize = %s" % visualize)
+    visualize = args.visualize
 
     while True:
         t = [time.time(), 0, 0, 0, 0, 0]
@@ -129,8 +129,8 @@ if __name__ == "__main__":
 
         meta = {}
 
-        #res = pb.process_image(image, meta)
-        image = cv2.flip(image, 1)
+        if args.rotate:
+            image = cv2.rotate(image, rotateCode=cv2.ROTATE_90_CLOCKWISE)
 
         t[2] = time.time()
 
