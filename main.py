@@ -91,7 +91,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-r", "--rotate", action='store_true', help="rotate clockwise for NN processing")
     parser.add_argument("-f", "--stream_frames", action='store_true', help="send encoded frames upstream")
-    parser.add_argument("-v", "--visualize", action='store_true', help="visualize")
+    parser.add_argument("-n", "--no_visual", action='store_false', help="visualize")
     parser.add_argument("camera", help="camera | file")
     parser.add_argument("upstream", help="port number | file")
     args = parser.parse_args()
@@ -117,7 +117,7 @@ if __name__ == "__main__":
     #cap.set(cv2.CAP_PROP_FPS, 30)
     
     windowName = None
-    visualize = args.visualize
+    visualize = not args.no_visual
 
     while True:
         t = [time.time(), 0, 0, 0, 0, 0]
