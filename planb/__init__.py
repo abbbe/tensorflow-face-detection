@@ -3,8 +3,11 @@ import math
 import time
 
 from planb.upstream import Upstream
+import dlib
+import numpy as np
 
 import logging
+
 logger = logging.getLogger('planb')
 
 def _get_box_distance(box1, box2):
@@ -25,32 +28,32 @@ def _get_box_sq(box):
 
 # ========================================================================================================
 
-from enum import Enum
-class Mode(Enum):
-    MOVING = 1
-    IDLE = 2
-    EFFECT_START = 3
-    EFFECT_RUN = 4
-    EFFECT_ABORT = 5
-
 class PlanB:
-    mode = Mode(Mode.IDLE)
-
     box_score_threshold = 0.8
-
     move_period = 10
     move_duration = 3
 
-    T1 = 3
-    T2 = 10
-    T3 = 3
-
-    def __init__(self, args):
+    def __init__(self):
         self.upstream = Upstream()
         self.target = None
         self.start_time = time.time()
-        self.args = args
+        self.tracker = dlib.correlation_tracker() #Tracker Object
+        self.tracking_face = False #Bool to check if Face is being tracked
+        self.resultImage = None 
+        self.h = 0 #height
+        self.w = 0 #width
+        self.last_box = [0,0,0,0]
+        self.update_threshold = 10 #Threshold to Update Box
 
+    def process_boxes(self, image, meta, boxes, scores):
+        # called after boxes are detected
+        logger.debug('process_boxes(): boxes=%d, target locked=%s' % (len(boxes), (self.target is not None)))
+        if self.target is None or not self.tracking_face:
+            self.process_boxes_for_new_target(image, meta, boxes, scores)
+            
+    #Method to track boxes once found
+    def track_boxes(self, image, meta):
+        self.process_boxes_for_tracked_target(image, meta)
     # ============================================================================
 
     import time
@@ -58,86 +61,87 @@ class PlanB:
     def reset_move(self):
         self.start_time = time.time()
 
-    def unrotate(self, box):
-        [x1, y1, x2, y2] = box
-        return [y2, x2, y1, x1]
-
-    def run(self, image, meta, boxes, scores):
-        # how many seconds passed since the start of the cycle
+    def is_camera_moving(self):
         elapsed = (time.time() - self.start_time) % self.move_period
-        moving = (elapsed < self.move_duration)
-
-        # process single frame
-        # send messages upstream
-
-        if self.mode == Mode.MOVING:
-            if moving:
-                # still moving
-                return # end of processing
-            else:
-                self.mode = Mode.IDLE
-                # fall through
-
-        if self.mode == Mode.IDLE:
-            if moving:
-                # started to move
-                self.mode = Mode.MOVING
-                return # end of processing
-
-            [i, _] = self.find_best_target(image, meta, boxes, scores)
-            if i is None:
-                return # end of processing
-
-            # new face found
-            self.mode = Mode.EFFECT_START
-            self.mode_endtime = time.time() + self.T1
-
-            if self.args.rotate:
-                box = self.unrotate(boxes[i].tolist())
-            else:
-                box = boxes[i].tolist()
-            self.upstream.send_effect_start(image, meta, box, [self.T1, self.T2, self.T3])
-            return # end of processing
-
-        if self.mode == Mode.EFFECT_START:
-            if time.time() < self.mode_endtime:
-                [i, _] = self.find_locked_target(image, meta, boxes, scores)
-                if i is None:
-                    self.mode = Mode.EFFECT_ABORT
-                    self.mode_endtime = time.time() + self.T3
-                    self.upstream.send_effect_abort(image, meta, [self.T3]) 
-                    return # end of processing
-
-                if self.args.rotate:
-                    box = self.unrotate(boxes[i].tolist())
-                else:
-                    box = boxes[i].tolist()
-                self.upstream.send_effect_run(image, meta, box)
-                return # end of processing
-                
-            self.mode = Mode.EFFECT_RUN
-            self.mode_endtime = time.time() + self.T2
-            # fall through
-        
-        if self.mode == Mode.EFFECT_RUN:
-            if time.time() < self.mode_endtime:
-                return # end of processing
-
-            self.mode = Mode.EFFECT_ABORT
-            self.mode_endtime = time.time() + self.T3
-            return # end of processing
-
-        if self.mode == Mode.EFFECT_ABORT:
-            if time.time() < self.mode_endtime:
-                return # end of processing
-
-            if moving:
-                self.mode = Mode.MOVING
-            else:
-                self.mode = Mode.IDLE
-            return # end of processing
+        return (elapsed < self.move_duration)
 
     # ============================================================================
+
+    def process_boxes_for_new_target(self, image, meta, boxes, scores):
+        # 5
+        [i, sq] = self.find_best_target(image, meta, boxes, scores)
+        if i is None:
+            logger.info('process_boxes_for_new_target(): face not found')
+            self.upstream.send_event_no_target_lock(image, meta)    
+        else:
+            box = boxes[i]
+            logger.info('process_boxes_for_new_target(): best box=%s, score=%s, sq=%f' % (box, scores[i], sq))
+            self.acquire_target(image, meta, box)
+            self.upstream.send_event_target_locked(image, meta, box)
+            ymin,xmin,ymax,xmax = self.get_coords(box)
+            self.tracker.start_track(image,
+                            dlib.rectangle( xmin,
+                                            ymin,
+                                            xmax,
+                                            ymax))
+            self.tracking_face = True
+
+    # ----------------------------------------------------------------------------
+
+    #Track the Object
+    def process_boxes_for_tracked_target(self, image, meta):
+		trackingQuality = self.tracker.update(image)
+		if trackingQuality >= 8.75:
+			tracked_position =  self.tracker.get_position()
+
+			left = int(tracked_position.left())
+			top = int(tracked_position.top())
+			right = int(tracked_position.right())
+			bottom = int(tracked_position.bottom())
+				
+			# Get update coordinates
+			up_box = self.check_box([top, left, right, bottom])
+			#Save Normalized box coordiantes in an array
+			box = np.asarray([float(up_box[1])/self.w, float(up_box[0])/self.h, float(up_box[2])/self.w, float(up_box[3])/self.h], dtype=float)
+			dist = _get_box_distance(self.target['box'], box)
+
+			#Draw box on bounding box
+			cv2.rectangle(self.resultImage, (up_box[1], up_box[0]),
+			                            (up_box[2] , up_box[3]),
+			                            (0,165,255) ,2)
+			logger.info('process_boxes_for_locked_target(): best box=%s, score=%s, dist=%f' % (box, trackingQuality, dist))
+			smoothed_box = self.update_target(image, meta, box)
+
+			self.upstream.send_event_target_locked(image, meta, smoothed_box)
+
+		else:
+			self.trackingface = False
+
+	# Ensure box does not updates position frequently -- stops jittering
+    def check_box(self, up_box):
+    		temp_box = self.last_box
+    		for i in range(len(up_box)):
+    			if abs(self.last_box[i] - up_box[i]) > self.update_threshold:
+    				self.last_box[i] = up_box[i]
+    				temp_box[i] = up_box[i]
+		return temp_box
+
+    def get_image(self):
+        return self.resultImage
+
+    def set_image(self, image):
+        self.resultImage = image.copy()
+
+    def set_prop(self, h ,w):
+        self.h = h
+        self.w = w
+
+    def get_coords(self,box):
+        ymin = long(box[0]*self.h)
+        xmin = long(box[1]*self.w)
+        ymax = long(box[2]*self.h)
+        xmax = long(box[3]*self.w)
+        return ymin,xmin,ymax,xmax
 
     def find_best_target(self, image, meta, boxes, scores):
         # FIXME-6: find the biggest face
@@ -154,32 +158,23 @@ class PlanB:
             if sq > best_box_sq:
                 best_box_i = i
                 best_box_sq = sq
-
-        if best_box_i is not None:
-            self.target = { 'box': boxes[best_box_i] }
-
         return [best_box_i, best_box_sq]
 
-    def find_locked_target(self, image, meta, boxes, scores):
-        # FIXME-12: find box closest to the target
-        closest_box_i = None
-        closest_box_distance = float('inf')
 
-        for i in range(len(boxes)):
-            if scores[i] < self.box_score_threshold:
-                # ignore low-certainty faces
-                continue
-    
-            box = boxes[i]
-            distance = _get_box_distance(self.target['box'], box)
-            if distance < closest_box_distance:
-                closest_box_i = i
-                closest_box_distance = distance
+    def acquire_target(self, image, meta, box):
+        # 9 - called once after target is selected
+        self.target = { 'box': box }
 
-        if closest_box_i is not None:
-            self.target = { 'box': boxes[closest_box_i] }
+    def update_target(self, image, meta, box):
+        # 14 - called continuously after target is
+        self.target = { 'box': box }
+        return box
 
-        return [closest_box_i, closest_box_distance]
+    def release_target(self):
+        # invoked when camera starts moving
+        self.target = None
+        self.tracking_face = False
+        self.last_box = [0,0,0,0]
 
     # ====================================================================================================
 
@@ -187,10 +182,7 @@ class PlanB:
         # Put status attributes on the image
         def putText(row, text):
             scale = 0.5
-            cv2.putText(frame, text, (0, int(25*row*scale)), cv2.FONT_HERSHEY_SIMPLEX, scale, 128)
+            cv2.putText(frame, text, (0, int(25*row*scale)), cv2.FONT_HERSHEY_SIMPLEX, scale, 255)
         
         elapsed = (time.time() - self.start_time) % self.move_period
         putText(1, 'elapsed=%.2f' % elapsed)
-        putText(2, 'mode=%s' % self.mode)
-        if self.mode == Mode.EFFECT_START or self.mode == Mode.EFFECT_RUN or self.mode == Mode.EFFECT_ABORT:
-            putText(3, 'mode_remains=%.2f' % (self.mode_endtime - time.time()))
